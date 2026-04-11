@@ -1,0 +1,9 @@
+{
+    "recommendations": [
+        "DavidAnson.vscode-markdownlint",
+        "esbenp.prettier-vscode",
+        "ms-vscode.cpptools",
+        "ms-python.black-formatter",
+        "ms-python.vscode-pylance"
+    ]
+}

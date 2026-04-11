@@ -1,0 +1,17 @@
+{
+    "editor.formatOnType": true,
+    "editor.formatOnSave": true,
+    "python.analysis.typeCheckingMode": "basic",
+    "C_Cpp.clang_format_style": "Google",
+    "black-formatter.args": ["--line-length", "120"],
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "[jsonc]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "prettier.tabWidth": 4
+    },
+    "[markdown]": {
+        "editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
+    }
+}
