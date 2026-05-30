@@ -25,10 +25,10 @@ class FaceRecognitionNode(Node):
     訂閱相機影像，執行臉部檢測與識別，並將識別結果發佈
 
     Subscriptions:
-        image_topic (sensor_msgs/Image): 相機影像幀
+        /image_raw (sensor_msgs/Image): 相機影像幀
 
     Publishers:
-        /face_recognition/debug_image (sensor_msgs/Image): 除錯影像 (可選)
+        /image_out (sensor_msgs/Image): 除錯影像 (可選)
     """
 
     def __init__(self) -> None:
@@ -40,9 +40,14 @@ class FaceRecognitionNode(Node):
 
         # 宣告參數
         self.declare_parameter(
-            "image_topic",
+            "image_in_topic",
             "/image_raw",
             ParameterDescriptor(description="相機影像話題"),
+        )
+        self.declare_parameter(
+            "image_out_topic",
+            "/image_out",
+            ParameterDescriptor(description="除錯影像話題"),
         )
         self.declare_parameter(
             "model_name",
@@ -71,7 +76,8 @@ class FaceRecognitionNode(Node):
         )
 
         # 讀取與驗證參數
-        image_topic = self.get_parameter("image_topic").get_parameter_value().string_value
+        image_in_topic = self.get_parameter("image_in_topic").get_parameter_value().string_value
+        image_out_topic = self.get_parameter("image_out_topic").get_parameter_value().string_value
         model_name = self.get_parameter("model_name").get_parameter_value().string_value
         confidence_threshold = self.get_parameter("confidence_threshold").get_parameter_value().double_value
         enable_gpu = self.get_parameter("enable_gpu").get_parameter_value().bool_value
@@ -113,8 +119,15 @@ class FaceRecognitionNode(Node):
         # 訂閱相機影像
         self.image_subscription = self.create_subscription(
             Image,
-            image_topic,
+            image_in_topic,
             self.image_callback,
+            qos_profile=sensor_qos,
+        )
+
+        # 發佈除錯影像
+        self.debug_image_publisher = self.create_publisher(
+            Image,
+            image_out_topic,
             qos_profile=sensor_qos,
         )
 
@@ -123,16 +136,9 @@ class FaceRecognitionNode(Node):
             Empty, "/face_recognition/refresh_cache", self.refresh_cache_callback
         )
 
-        # 發佈除錯影像 (可選)
-        if self.publish_debug_image:
-            self.debug_image_publisher = self.create_publisher(
-                Image,
-                "/face_recognition/debug_image",
-                qos_profile=sensor_qos,
-            )
-
         self.get_logger().info("✓ 人臉識別節點已初始化")
-        self.get_logger().info(f"  訂閱主題: {image_topic}")
+        self.get_logger().info(f"  訂閱話題: {image_in_topic}")
+        self.get_logger().info(f"  發佈話題: {image_out_topic} (除錯影像)")
         self.get_logger().info(f"  模型: {model_name}")
         self.get_logger().info(f"  資料庫: {self.db_manager.database_dir}")
         self.get_logger().info(f"  認人閾值: {self.recognition_threshold}")
@@ -198,7 +204,7 @@ class FaceRecognitionNode(Node):
                 self.get_logger().debug("未偵測到臉部")
 
             # 發佈除錯影像
-            if self.publish_debug_image and self.debug_image_publisher:
+            if self.publish_debug_image:
                 debug_image = self.engine.draw_detections(cv_image, faces)
                 debug_msg = self.bridge.cv2_to_imgmsg(debug_image, "bgr8")
                 debug_msg.header = msg.header
@@ -260,15 +266,14 @@ class FaceRecognitionNode(Node):
 def main(args=None):
     """人臉識別節點進入點"""
     rclpy.init(args=args)
-
+    node = FaceRecognitionNode()
     try:
-        node = FaceRecognitionNode()
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
-        if rclpy.ok():
-            rclpy.shutdown()
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":

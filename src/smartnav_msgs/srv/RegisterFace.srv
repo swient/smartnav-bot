@@ -1,23 +1,8 @@
 # 人臉註冊服務
-# 用於將新人臉添加到識別系統
 
-# 請求
-
-# 人員名稱
-string person_name
-
-# 採集的臉部影像數量
-int32 num_samples
-
+string person_name              # 人員名稱
+int32 num_samples               # 採集的臉部影像數量
 ---
-
-# 回應
-
-# 是否成功
-bool success
-
-# 訊息 (成功或錯誤描述)
-string message
-
-# 若成功，返回分配的人員 UUID
-string person_uuid
+bool success                    # 是否成功
+string message                  # 訊息 (成功或錯誤描述)
+string person_uuid              # 若成功，返回分配的人員 UUID

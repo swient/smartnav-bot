@@ -24,10 +24,10 @@ class FaceRegistrationNode(Node):
     訂閱相機影像並提供人臉註冊服務
 
     Subscriptions:
-        image_topic (sensor_msgs/Image): 相機幀用於採集臉部樣本
+        /image_raw (sensor_msgs/Image): 相機幀用於採集臉部樣本
 
     Services:
-        /face_registration/register (RegisterFace): 註冊新人員
+        /register_face (RegisterFace): 註冊新人員
     """
 
     def __init__(self) -> None:
@@ -43,6 +43,11 @@ class FaceRegistrationNode(Node):
             "image_topic",
             "/image_raw",
             ParameterDescriptor(description="相機影像話題"),
+        )
+        self.declare_parameter(
+            "register_service",
+            "/register_face",
+            ParameterDescriptor(description="人臉註冊服務"),
         )
         self.declare_parameter(
             "model_name",
@@ -67,6 +72,7 @@ class FaceRegistrationNode(Node):
 
         # 讀取與驗證參數
         image_topic = self.get_parameter("image_topic").get_parameter_value().string_value
+        register_service = self.get_parameter("register_service").get_parameter_value().string_value
         model_name = self.get_parameter("model_name").get_parameter_value().string_value
         confidence_threshold = self.get_parameter("confidence_threshold").get_parameter_value().double_value
         enable_gpu = self.get_parameter("enable_gpu").get_parameter_value().bool_value
@@ -107,7 +113,7 @@ class FaceRegistrationNode(Node):
         # 建立註冊服務
         self.register_service = self.create_service(
             RegisterFace,
-            "/face_registration/register",
+            register_service,
             self.register_callback,
         )
 
@@ -333,15 +339,14 @@ class FaceRegistrationNode(Node):
 def main(args=None):
     """人臉註冊節點進入點"""
     rclpy.init(args=args)
-
+    node = FaceRegistrationNode()
     try:
-        node = FaceRegistrationNode()
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
-        if rclpy.ok():
-            rclpy.shutdown()
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":

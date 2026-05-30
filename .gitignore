@@ -5,6 +5,7 @@ install/
 log/
 bin/
 lib/
+models/
 msg_gen/
 srv_gen/
 msg/*Action.msg
