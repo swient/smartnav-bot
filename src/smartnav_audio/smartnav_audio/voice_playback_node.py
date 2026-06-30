@@ -4,12 +4,17 @@
 訂閱音訊話題，將音訊資料播放至喇叭。
 """
 
+import threading
 from typing import Optional
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+from rclpy.duration import Duration
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rcl_interfaces.msg import ParameterDescriptor
+from std_msgs.msg import Bool
 
 from smartnav_msgs.msg import AudioData
 from smartnav_audio.voice_utils import AudioCodec, validate_audio_data
@@ -45,20 +50,37 @@ class AudioPlaybackNode(Node):
         audio_topic = self.get_parameter("audio_topic").get_parameter_value().string_value
 
         self.audio_player: Optional[AudioPlayer] = None
+        self.is_playing = False
+        self.last_playing_time = self.get_clock().now()
+        self._playing_lock = threading.Lock()
         self._init_player()
 
+        self.callback_group = ReentrantCallbackGroup()
+
         # 建立 QoS 配置檔
-        qos_profile = QoSProfile(
-            reliability=ReliabilityPolicy.RELIABLE,
+        audio_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
-            depth=self.queue_size,
+            depth=5,
+        )
+        status_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
         )
 
         self.audio_sub = self.create_subscription(
             AudioData,
             audio_topic,
             self._audio_callback,
-            qos_profile,
+            audio_qos,
+            callback_group=self.callback_group,
+        )
+
+        self.playback_status_pub = self.create_publisher(Bool, "playback_status", status_qos)
+        self.playback_status_timer = self.create_timer(
+            0.05, self._playback_status_timer_callback, callback_group=self.callback_group
         )
 
         self.get_logger().info(f"✓ 音訊播放節點已初始化")
@@ -88,6 +110,10 @@ class AudioPlaybackNode(Node):
             self.audio_player.stop()
             self.audio_player = None
             self.get_logger().info("✓ 音訊播放器已停止")
+
+            with self._playing_lock:
+                if self.is_playing:
+                    self._publish_playback_status(False)
         except Exception as e:
             self.get_logger().error(f"✗ 停止音訊播放器失敗: {e}")
 
@@ -113,6 +139,12 @@ class AudioPlaybackNode(Node):
                 self.get_logger().warning(f"✗ 無效的音訊數據: {error}")
                 return
 
+            if self.audio_player:
+                with self._playing_lock:
+                    self.last_playing_time = self.get_clock().now()
+                    if not self.is_playing:
+                        self._publish_playback_status(True)
+
             # 傳遞已解碼的 float32 音訊到播放器
             if self.audio_player:
                 self.audio_player.enqueue_audio(audio, sample_rate=msg.sample_rate)
@@ -120,13 +152,43 @@ class AudioPlaybackNode(Node):
         except Exception as e:
             self.get_logger().error(f"音訊播放失敗: {e}")
 
+    def _publish_playback_status(self, status: bool) -> None:
+        """發布說話狀態"""
+        msg = Bool()
+        msg.data = status
+        self.is_playing = status
+        self.playback_status_pub.publish(msg)
+
+    def _playback_status_timer_callback(self) -> None:
+        """定時檢查說話狀態"""
+        if not self.audio_player:
+            with self._playing_lock:
+                if self.is_playing:
+                    self._publish_playback_status(False)
+            return
+
+        is_playing = self.audio_player.is_playing_audio()
+        current_time = self.get_clock().now()
+
+        with self._playing_lock:
+            if is_playing:
+                self.last_playing_time = current_time
+                if not self.is_playing:
+                    self._publish_playback_status(True)
+            else:
+                silence_duration = current_time - self.last_playing_time
+                if self.is_playing and silence_duration > Duration(seconds=0.5):
+                    self._publish_playback_status(False)
+
 
 def main(args=None):
     """音訊播放節點進入點"""
     rclpy.init(args=args)
     node = AudioPlaybackNode()
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:

@@ -54,10 +54,10 @@ class SpeechSynthesizerNode(Node):
         self._init_sherpa_onnx_tts()
 
         # QoS 設定
-        qos_profile = QoSProfile(
-            reliability=ReliabilityPolicy.RELIABLE,
+        audio_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
-            depth=10,
+            depth=5,
         )
 
         # 訂閱器 - 訂閱文字話題
@@ -65,11 +65,11 @@ class SpeechSynthesizerNode(Node):
             String,
             text_topic,
             self._text_callback,
-            qos_profile,
+            10,
         )
 
         # 發佈器 - 發佈合成的音訊
-        self.audio_pub = self.create_publisher(AudioData, audio_topic, qos_profile)
+        self.audio_pub = self.create_publisher(AudioData, audio_topic, audio_qos)
 
         self.get_logger().info("✓ 語音合成節點已初始化")
         self.get_logger().info(f"  訂閱話題: {text_topic}")

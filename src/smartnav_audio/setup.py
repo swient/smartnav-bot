@@ -1,6 +1,6 @@
-from setuptools import find_packages, setup
 import os
 import glob
+from setuptools import find_packages, setup
 
 package_name = "smartnav_audio"
 

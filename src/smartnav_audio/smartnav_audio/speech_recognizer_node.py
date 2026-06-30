@@ -14,9 +14,11 @@ import sherpa_onnx
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
+from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rcl_interfaces.msg import ParameterDescriptor
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 
 from smartnav_msgs.msg import AudioData
 from smartnav_audio.voice_utils import AudioCodec, get_model_path, validate_audio_data
@@ -31,7 +33,7 @@ class SpeechRecognizerNode(Node):
         /audio_in (smartnav_msgs/AudioData): 音訊數據流
 
     Publishers:
-        /recognized_text (std_msgs/String): 辨識到的完整文字
+        /user_text (std_msgs/String): 辨識到的完整文字
         /partial_text (std_msgs/String): 辨識過程中的部分文字
     """
 
@@ -42,9 +44,7 @@ class SpeechRecognizerNode(Node):
         # 參數聲明
         self.declare_parameter("sample_rate", 16000)
         self.declare_parameter("num_threads", 4)
-        self.declare_parameter(
-            "recognized_text_topic", "/recognized_text", ParameterDescriptor(description="辨識到的完整文字話題")
-        )
+        self.declare_parameter("user_text_topic", "/user_text", ParameterDescriptor(description="辨識到的完整文字話題"))
         self.declare_parameter(
             "partial_text_topic", "/partial_text", ParameterDescriptor(description="辨識過程中的部分文字話題")
         )
@@ -53,7 +53,7 @@ class SpeechRecognizerNode(Node):
         # 參數獲取
         self.sample_rate = self.get_parameter("sample_rate").get_parameter_value().integer_value
         self.num_threads = self.get_parameter("num_threads").get_parameter_value().integer_value
-        self.recognized_text_topic = self.get_parameter("recognized_text_topic").get_parameter_value().string_value
+        self.user_text_topic = self.get_parameter("user_text_topic").get_parameter_value().string_value
         self.partial_text_topic = self.get_parameter("partial_text_topic").get_parameter_value().string_value
         audio_topic = self.get_parameter("audio_topic").get_parameter_value().string_value
 
@@ -79,16 +79,22 @@ class SpeechRecognizerNode(Node):
         self.worker_thread = threading.Thread(target=self._process_audio_queue, daemon=True)
         self.worker_thread.start()
 
+        self.is_playing = False
+        self._playing_lock = threading.Lock()
+
+        self.callback_group = ReentrantCallbackGroup()
+
         # QoS 設定
-        qos_profile = QoSProfile(
-            reliability=ReliabilityPolicy.RELIABLE,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=10,
-        )
         audio_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
             depth=5,
+        )
+        status_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
         )
 
         # 訂閱器
@@ -97,15 +103,24 @@ class SpeechRecognizerNode(Node):
             audio_topic,
             self._audio_callback,
             audio_qos,
+            callback_group=self.callback_group,
         )
 
         # 發佈器
-        self.recognized_text_pub = self.create_publisher(String, self.recognized_text_topic, qos_profile)
-        self.partial_text_pub = self.create_publisher(String, self.partial_text_topic, qos_profile)
+        self.user_text_pub = self.create_publisher(String, self.user_text_topic, 10)
+        self.partial_text_pub = self.create_publisher(String, self.partial_text_topic, 10)
+        # 訂閱器
+        self.playback_status_sub = self.create_subscription(
+            Bool,
+            "playback_status",
+            self._playback_status_callback,
+            status_qos,
+            callback_group=self.callback_group,
+        )
 
         self.get_logger().info("✓ 語音辨識節點已初始化")
         self.get_logger().info(f"  訂閱話題: {audio_topic}")
-        self.get_logger().info(f"  發布話題: {self.recognized_text_topic}")
+        self.get_logger().info(f"  發布話題: {self.user_text_topic}")
         self.get_logger().info(f"  發布話題: {self.partial_text_topic}")
         self.get_logger().info(f"  採樣率: {self.sample_rate} Hz")
 
@@ -160,6 +175,10 @@ class SpeechRecognizerNode(Node):
         Args:
             msg: 音訊訊息
         """
+        with self._playing_lock:
+            if self.is_playing:
+                return
+
         try:
             # 驗證採樣率
             if msg.sample_rate != self.sample_rate:
@@ -192,6 +211,12 @@ class SpeechRecognizerNode(Node):
                     break
 
                 audio, is_final = queue_item
+
+                with self._playing_lock:
+                    if self.is_playing:
+                        self.audio_queue.task_done()
+                        continue
+
                 self.recognize_audio(audio, is_final=is_final)
                 self.audio_queue.task_done()
             except queue.Empty:
@@ -237,6 +262,10 @@ class SpeechRecognizerNode(Node):
             audio: 音訊數據陣列 (float32 格式)
             is_final: 是否為最終音訊塊 (true 表示說話已結束)
         """
+        with self._playing_lock:
+            if self.is_playing:
+                return
+
         if self.recognizer is None or self.stream is None:
             self.get_logger().warning("ASR 模型未初始化")
             return
@@ -255,6 +284,10 @@ class SpeechRecognizerNode(Node):
 
             # 檢查流是否已準備好進行解碼
             while self.recognizer.is_ready(self.stream):
+                with self._playing_lock:
+                    if self.is_playing:
+                        return
+
                 self.recognizer.decode_stream(self.stream)
 
             result = self.recognizer.get_result(self.stream)
@@ -263,13 +296,13 @@ class SpeechRecognizerNode(Node):
                 if converted_text:
                     if is_final:
                         self.get_logger().info(f"✓ 最終結果: '{converted_text}'")
-                        self.recognized_text_pub.publish(String(data=converted_text))
+                        self.user_text_pub.publish(String(data=converted_text))
                         # 重置上一次部分結果
                         self.last_partial_result = None
                     else:
                         # 只在部分結果與上一次不同時才發佈
                         if converted_text != self.last_partial_result:
-                            self.get_logger().info(f"▶ 部分結果: '{converted_text}'")
+                            self.get_logger().debug(f"▶ 部分結果: '{converted_text}'")
                             self.partial_text_pub.publish(String(data=converted_text))
                             self.last_partial_result = converted_text
 
@@ -280,6 +313,23 @@ class SpeechRecognizerNode(Node):
             self.get_logger().error(f"✗ 語音辨識失敗: {e}")
             # 重置流
             self.stream = self.recognizer.create_stream()
+
+    def _playback_status_callback(self, msg: Bool) -> None:
+        """說話狀態回呼函數"""
+        with self._playing_lock:
+            self.is_playing = msg.data
+
+        if self.is_playing:
+            while not self.audio_queue.empty():
+                try:
+                    self.audio_queue.get_nowait()
+                except queue.Empty:
+                    break
+
+            if self.recognizer and self.stream:
+                self.stream = self.recognizer.create_stream()
+
+            self.last_partial_result = None
 
     def _convert_simplified_to_traditional(self, text: str) -> str:
         """將簡體中文轉換為繁體中文
@@ -315,8 +365,10 @@ def main(args=None):
     """語音辨識節點進入點"""
     rclpy.init(args=args)
     node = SpeechRecognizerNode()
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:

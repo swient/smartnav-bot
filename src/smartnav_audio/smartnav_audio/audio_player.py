@@ -226,6 +226,20 @@ class AudioPlayer:
             self.logger.error(f"音訊回呼處理失敗: {e}")
             outdata.fill(0.0)
 
+    def is_playing_audio(self) -> bool:
+        """檢查目前是否有音訊資料正在播放
+
+        Returns:
+            bool: 如果正在播放音訊則返回 True，否則返回 False
+        """
+        if not self._playing:
+            return False
+
+        with self._lock:
+            has_buffer = len(self._buffer) > 0
+            has_queue = not self._queue.empty()
+            return has_buffer or has_queue
+
     def _clear_queue(self) -> None:
         """清空播放隊列
 
