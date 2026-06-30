@@ -8,12 +8,38 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 
-rosidl_generate_interfaces(${PROJECT_NAME}
+# Generate message files
+set(msg_files
   "msg/AudioData.msg"
+  "msg/MapInfo.msg"
+  "msg/WaypointInfo.msg"
+)
+
+# Generate service files
+set(srv_files
   "srv/RegisterFace.srv"
-  DEPENDENCIES std_msgs builtin_interfaces
+  "srv/ListMaps.srv"
+  "srv/SwitchMap.srv"
+  "srv/CreateWaypoint.srv"
+  "srv/ListWaypoints.srv"
+  "srv/GetWaypoint.srv"
+)
+
+# Generate action files
+set(action_files
+  "action/CreateMap.action"
+  "action/GlobalLocalization.action"
+  "action/Navigate.action"
+)
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  ${msg_files}
+  ${srv_files}
+  ${action_files}
+  DEPENDENCIES std_msgs geometry_msgs builtin_interfaces
 )
 
 ament_package()
