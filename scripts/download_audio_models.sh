@@ -17,13 +17,6 @@ mkdir -p "$MODEL_DIR"
 
 echo "開始下載模型至 $MODEL_DIR..."
 
-# --- KWS (Key Word Spotting) ---
-echo "正在處理 KWS..."
-mkdir -p "$MODEL_DIR/kws"
-wget -c -P "$MODEL_DIR/kws" https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2
-tar xvf "$MODEL_DIR/kws/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2" -C "$MODEL_DIR/kws" --strip-components=1
-rm "$MODEL_DIR/kws/sherpa-onnx-kws-zipformer-zh-en-3M-2025-12-20.tar.bz2"
-
 # --- ASR (Automatic Speech Recognition) ---
 echo "正在處理 ASR..."
 mkdir -p "$MODEL_DIR/asr"

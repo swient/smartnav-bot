@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = "smartnav_brain"
+package_name = "smartnav_hmi"
 
 setup(
     name=package_name,

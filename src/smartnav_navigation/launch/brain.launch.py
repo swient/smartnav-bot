@@ -6,7 +6,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 
-pkg_share_dir = get_package_share_directory("smartnav_brain")
+pkg_share_dir = get_package_share_directory("smartnav_navigation")
 
 
 def generate_launch_description():
@@ -20,19 +20,19 @@ def generate_launch_description():
                 default_value="false",
             ),
             Node(
-                package="smartnav_brain",
+                package="smartnav_navigation",
                 executable="map_service",
                 output="screen",
                 parameters=[{"use_sim_time": use_sim_time}],
             ),
             Node(
-                package="smartnav_brain",
+                package="smartnav_navigation",
                 executable="waypoint_service",
                 output="screen",
                 parameters=[{"use_sim_time": use_sim_time}],
             ),
             Node(
-                package="smartnav_brain",
+                package="smartnav_navigation",
                 executable="navigation_action",
                 output="screen",
                 parameters=[{"use_sim_time": use_sim_time}],

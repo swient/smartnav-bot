@@ -8,12 +8,13 @@
   <license>MIT</license>
 
   <depend>rclpy</depend>
-  <depend>sensor_msgs</depend>
-  <depend>cv_bridge</depend>
-  <depend>std_msgs</depend>
-  <depend>vision_msgs</depend>
-  <depend>smartnav_msgs</depend>
   <depend>rcl_interfaces</depend>
+  <depend>smartnav_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>vision_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>usb_cam</depend>
 
   <exec_depend>python3-numpy</exec_depend>
   <exec_depend>python3-opencv</exec_depend>

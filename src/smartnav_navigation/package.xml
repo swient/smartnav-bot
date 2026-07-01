@@ -1,19 +1,20 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>smartnav_audio</name>
+  <name>smartnav_navigation</name>
   <version>0.0.1</version>
-  <description>SmartNav 音訊處理功能包 - 語音喚醒、語音辨識、文字轉語音</description>
+  <description>SmartNav 移動導航功能包 - 地圖服務、路徑規劃、導航控制</description>
   <maintainer email="swient@todo.todo">swient</maintainer>
   <license>MIT</license>
 
   <depend>rclpy</depend>
-  <depend>rcl_interfaces</depend>
   <depend>smartnav_msgs</depend>
   <depend>std_msgs</depend>
-
-  <exec_depend>python3-numpy</exec_depend>
-  <exec_depend>python3-soundfile</exec_depend>
+  <depend>nav2_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>navigation2</depend>
+  <depend>nav2_bringup</depend>
+  <depend>slam_toolbox</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
