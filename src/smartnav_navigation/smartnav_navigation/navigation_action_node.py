@@ -15,6 +15,7 @@ from rclpy.duration import Duration
 from rclpy.action import ActionClient, ActionServer
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
+from std_msgs.msg import String
 from action_msgs.msg import GoalStatus
 from nav2_msgs.action import NavigateToPose
 from geometry_msgs.msg import PoseWithCovarianceStamped
@@ -46,9 +47,13 @@ class NavigationServiceNode(Node):
         # 地點查詢客戶端
         self.get_waypoint_client = self.create_client(GetWaypoint, "get_waypoint", callback_group=self.client_cb_group)
 
+        # 訂閱 AMCL 定位資訊
         self.amcl_pose_sub = self.create_subscription(
             PoseWithCovarianceStamped, "amcl_pose", self._amcl_pose_callback, 10, callback_group=self.client_cb_group
         )
+
+        # 發布語音文字話題
+        self.speech_text_pub = self.create_publisher(String, "speech_text", 10)
 
         self.current_covariance_norm = float("inf")
 
@@ -150,7 +155,9 @@ class NavigationServiceNode(Node):
                 self.get_logger().warning("導航請求被拒絕")
                 return result
 
-            self.get_logger().info("Nav2 接受目標，開始導航")
+            waypoint_name = response.waypoint_info.waypoint_name
+            self.speech_text_pub.publish(String(data=f"開始導航到 {waypoint_name}"))
+            self.get_logger().info(f"開始導航到 {waypoint_name}")
 
             start_time = self.get_clock().now()
             max_wait_time = Duration(seconds=100.0)

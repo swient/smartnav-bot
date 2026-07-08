@@ -316,11 +316,8 @@ class LLMServiceNode(Node):
 
                 result_future = goal_handle.get_result_async()
                 action_result = self._wait_for_future(result_future, timeout_sec=200.0)
-                self.get_logger().info(f"[Debug] 收到原始 Result 物件: {action_result.result}")
-                self.get_logger().info(f"[Debug] 原始 message 內容: '{action_result.result.message}'")
 
                 if action_result.status == GoalStatus.STATUS_SUCCEEDED:
-
                     return f"執行結果: 成功, 詳細信息: {action_result.result.message}"
                 elif action_result.status == GoalStatus.STATUS_CANCELED:
                     return "執行結果: 取消, 詳細信息: 導航請求被系統或使用者取消"

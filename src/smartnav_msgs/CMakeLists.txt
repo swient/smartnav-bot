@@ -14,18 +14,20 @@ find_package(builtin_interfaces REQUIRED)
 # Generate message files
 set(msg_files
   "msg/AudioData.msg"
+  "msg/FaceEmbedding.msg"
   "msg/MapInfo.msg"
+  "msg/UserType.msg"
   "msg/WaypointInfo.msg"
 )
 
 # Generate service files
 set(srv_files
-  "srv/RegisterFace.srv"
-  "srv/ListMaps.srv"
-  "srv/SwitchMap.srv"
   "srv/CreateWaypoint.srv"
-  "srv/ListWaypoints.srv"
   "srv/GetWaypoint.srv"
+  "srv/ListMaps.srv"
+  "srv/ListWaypoints.srv"
+  "srv/RegisterFace.srv"
+  "srv/SwitchMap.srv"
 )
 
 # Generate action files

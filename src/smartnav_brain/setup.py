@@ -22,6 +22,8 @@ setup(
         ],
     },
     entry_points={
-        "console_scripts": [],
+        "console_scripts": [
+            "user_auth = smartnav_brain.user_auth_node:main",
+        ],
     },
 )
